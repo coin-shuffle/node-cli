@@ -1,0 +1,49 @@
+[package]
+name    = "coin-shuffle-node"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies.coin-shuffle-core]
+git      = "ssh://git@github.com/coin-shuffle/core.git"
+branch   = "develop"
+features = ["serde"]
+
+[dependencies.coin-shuffle-protos]
+git      = "ssh://git@github.com/coin-shuffle/protos.git"
+branch   = "develop"
+
+[dependencies.coin-shuffle-contracts-bindings]
+git      = "ssh://git@github.com/coin-shuffle/contracts-bindings.git"
+branch   = "develop"
+
+[dependencies.ethers]
+git = "https://github.com/gakonst/ethers-rs.git"
+branch = "master"
+
+[dependencies]
+# easy cli parsing
+clap        = { version = "4.1.6", features = ["derive", "cargo"] }
+
+## ethereum lib
+#ethers-core      = { version = "1.0.2" }
+#ethers-providers = { version = "1.0.2" }
+
+# convinient error handling
+thiserror = { version = "1.0.38" }
+eyre      = { version = "0.6.8" }
+
+# logger
+simplelog = { version = "0.12.0", features = ["termcolor"] }
+log       = { version = "0.4.17" }
+
+# RSA
+rsa = { version = "0.8.1" }
+
+# protobuf grpc
+tonic = { version = "0.8.3" }
+
+# async
+tokio       = { version = "1.25.0" }
+async-trait = { version = "0.1.64" }
