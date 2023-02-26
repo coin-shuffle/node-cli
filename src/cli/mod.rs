@@ -27,17 +27,17 @@ pub enum UtxoSubCommand {
 
 impl Cli {
     pub async fn exec(self) -> eyre::Result<()> {
-        Ok(match self {
+        match self {
             Self::Shuffle(args) => actions::shuffle(args).await,
             Self::Utxo(subcommand) => match subcommand.cmd {
-                UtxoSubCommand::Get(args) => Ok(()),
+                UtxoSubCommand::Get(_args) => Ok(()),
             },
-        }?)
+        }
     }
 }
 
 pub async fn run() -> eyre::Result<()> {
-    logger::init(&"debug".to_string());
+    logger::init("debug");
 
     cli::Cli::parse().exec().await
 }

@@ -2,17 +2,24 @@ use coin_shuffle_contracts_bindings::utxo::Connector;
 use coin_shuffle_core::node::room::Room;
 use coin_shuffle_core::node::storage::RoomMemoryStorage;
 use coin_shuffle_core::node::Node;
+use coin_shuffle_protos::v1::shuffle_event::Body;
 use coin_shuffle_protos::v1::shuffle_service_client::ShuffleServiceClient;
-use coin_shuffle_protos::v1::{ConnectShuffleRoomRequest, JoinShuffleRoomRequest};
+use coin_shuffle_protos::v1::{
+    ConnectShuffleRoomRequest, EncodedOutputs, IsReadyForShuffleRequest, JoinShuffleRoomRequest,
+    RsaPublicKey as ProtoRSAPublicKey, ShuffleError, ShuffleEvent, ShuffleInfo,
+    ShuffleRoundRequest, ShuffleTxHash, SignShuffleTxRequest, TxSigningOutputs,
+};
+use ethers::abi::AbiEncode;
 use ethers::providers::{Http, Provider};
 use ethers::signers::{LocalWallet, Signer};
 use ethers::types::U256;
 use eyre::{Context, ContextCompat, Result};
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::RsaPrivateKey;
+use rsa::{BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
 use std::fs::read_to_string;
 use std::str::FromStr;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
+use tonic::codec::Streaming;
 use tonic::transport::Channel;
 
 #[derive(Debug, Clone)]
@@ -20,7 +27,7 @@ pub struct Service {
     node: Node<RoomMemoryStorage, Connector<Provider<Http>>>,
     grpc_service: ShuffleServiceClient<Channel>,
     room: Option<Room>,
-    jwt: Option<String>,
+    jwt: String,
 }
 
 impl Service {
@@ -34,11 +41,10 @@ impl Service {
                 RoomMemoryStorage::new(),
                 Connector::from_raw(rpc_url, utxo_address)
                     .context("failed to init connector from raw")?,
-            )
-            .into(),
+            ),
             grpc_service,
             room: None,
-            jwt: None,
+            jwt: String::default(),
         })
     }
 
@@ -48,7 +54,9 @@ impl Service {
         output_address: String,
         rsa_priv_path: String,
         ecdsa_priv_path: String,
-    ) -> Result<Self> {
+    ) -> Result<()> {
+        log::info!("initializing room...");
+
         self.room = Some(
             self.node
                 .init_room(
@@ -70,10 +78,12 @@ impl Service {
                 .context("failed to init room")?,
         );
 
-        Ok(self.clone())
+        Ok(())
     }
 
-    pub async fn connect_room(&mut self) -> Result<Self> {
+    pub async fn join_shuffle_room(&mut self) -> Result<()> {
+        log::info!("connecting to room...");
+
         let room = self.room.as_ref().context("room is missing")?;
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
@@ -82,27 +92,190 @@ impl Service {
 
         let response = self
             .grpc_service
-            .join_shuffle_room(JoinShuffleRoomRequest {
-                utxo: room.utxo.id.to_string(),
-                sign: room
-                    .ecdsa_private_key
-                    .sign_message(room.utxo.id.to_string() + timestamp.as_str())
-                    .await
-                    .context("failed to sign with ecdsa priv key")?
-                    .to_string(),
-                timestamp: timestamp.as_str().parse()?,
-            })
+            .join_shuffle_room(with_auth(
+                self.jwt.clone(),
+                JoinShuffleRoomRequest {
+                    utxo_id: room.utxo.id.encode(),
+                    signature: room
+                        .ecdsa_private_key
+                        .sign_message(room.utxo.id.to_string() + timestamp.as_str())
+                        .await
+                        .context("failed to sign with ecdsa priv key")?
+                        .to_vec(),
+                    timestamp: timestamp.as_str().parse()?,
+                },
+            ))
             .await
-            .context("got not successful status from shuffle-service")?;
+            .context("got unsuccessful status from shuffle-service")?;
 
-        self.jwt = Some(
-            response
-                .into_inner()
-                .access_jwt
-                .context("access jwt is absent in issuer request")?
-                .jwt,
+        self.jwt = response.into_inner().room_access_token;
+
+        Ok(())
+    }
+
+    pub async fn wait_shuffle(&mut self) -> Result<()> {
+        log::info!("waiting shuffle start...");
+
+        let mut is_ready = false;
+
+        while !is_ready {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            let response = self
+                .grpc_service
+                .is_ready_for_shuffle(with_auth(self.jwt.clone(), IsReadyForShuffleRequest {}))
+                .await
+                .context("failed to check shuffle room status")?;
+
+            is_ready = response.into_inner().ready;
+        }
+
+        Ok(())
+    }
+
+    pub async fn connect_room(&mut self) -> Result<Streaming<ShuffleEvent>> {
+        log::info!("room is ready, start shuffling...");
+
+        let rsa_public_key = self
+            .room
+            .clone()
+            .context("room is absent")?
+            .rsa_private_key
+            .to_public_key();
+
+        Ok(self
+            .grpc_service
+            .connect_shuffle_room(with_auth(
+                self.jwt.clone(),
+                ConnectShuffleRoomRequest {
+                    public_key: Some(ProtoRSAPublicKey {
+                        modulus: rsa_public_key.n().to_bytes_be(),
+                        exponent: rsa_public_key.e().to_bytes_be(),
+                    }),
+                },
+            ))
+            .await
+            .context("failed to connect shuffle room")?
+            .into_inner())
+    }
+
+    pub(crate) async fn shuffling(
+        &mut self,
+        mut stream: Streaming<ShuffleEvent>,
+    ) -> Result<String> {
+        while let Ok(Some(event)) = stream.message().await {
+            let Some(data) = event.body else {
+                continue;
+            };
+
+            match data {
+                Body::ShuffleInfo(event_body) => self.event_shuffle_info(event_body).await?,
+                Body::EncodedOutputs(event_body) => self.event_encoded_outputs(event_body).await?,
+                Body::TxSigningOutputs(event_body) => {
+                    self.event_signing_outputs(event_body).await?
+                }
+                Body::ShuffleTxHash(event_body) => self.event_tx_hash(event_body).await?,
+                Body::Error(event_body) => self.event_error(event_body).await?,
+            }
+        }
+
+        Ok("".to_string())
+    }
+
+    async fn event_shuffle_info(&mut self, event_body: ShuffleInfo) -> Result<()> {
+        log::debug!("received shuffle info from shuffle-service");
+
+        let mut participants_public_keys = Vec::<RsaPublicKey>::new();
+        for public_key_raw in event_body.public_keys_list {
+            let public_key = RsaPublicKey::new(
+                BigUint::from_bytes_be(public_key_raw.modulus.as_slice()),
+                BigUint::from_bytes_be(public_key_raw.exponent.as_slice()),
+            )
+            .context("failed to parse rsa public key")?;
+            participants_public_keys.insert(0, public_key);
+        }
+        log::debug!("participants public keys: {:?}", participants_public_keys);
+
+        self.node
+            .update_shuffle_info(
+                participants_public_keys,
+                self.room.clone().context("room is absent")?.utxo.id,
+            )
+            .await
+            .context("failed to update room shuffle info")?;
+
+        Ok(())
+    }
+
+    async fn event_encoded_outputs(&mut self, event_body: EncodedOutputs) -> Result<()> {
+        log::debug!("received encoded outputs from shuffle-service");
+
+        let decoded_outputs = self
+            .node
+            .shuffle_round(
+                event_body.outputs,
+                self.room.clone().context("room is absent")?.utxo.id,
+            )
+            .await
+            .context("failed to do shuffle round")?;
+
+        self.grpc_service
+            .shuffle_round(with_auth(
+                self.jwt.clone(),
+                ShuffleRoundRequest {
+                    encoded_outputs: decoded_outputs,
+                },
+            ))
+            .await
+            .context("failed to send shuffle round result")?;
+
+        Ok(())
+    }
+
+    async fn event_signing_outputs(&mut self, event_body: TxSigningOutputs) -> Result<()> {
+        log::debug!("received transaction signing outputs");
+
+        let signature = self
+            .node
+            .sign_tx(
+                self.room.clone().context("room is absent")?.utxo.id,
+                event_body.outputs,
+            )
+            .await
+            .context("failed to sign outputs")?;
+
+        self.grpc_service
+            .sign_shuffle_tx(with_auth(
+                self.jwt.clone(),
+                SignShuffleTxRequest { signature },
+            ))
+            .await
+            .context("failed to send signed shuffle transaction")?;
+
+        Ok(())
+    }
+
+    async fn event_tx_hash(&mut self, event_body: ShuffleTxHash) -> Result<()> {
+        log::info!(
+            "utxo successfully shuffled, tx hash: {0}",
+            ethers::types::H160::from_slice(event_body.tx_hash.as_slice()).to_string()
         );
 
-        Ok(self.clone())
+        Ok(())
     }
+
+    async fn event_error(&self, event_body: ShuffleError) -> Result<()> {
+        log::info!("failed to shuffle, got error: {0}", event_body.error);
+
+        Ok(())
+    }
+}
+
+fn with_auth<T>(token: String, request: T) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(request);
+    request.metadata_mut().insert(
+        "authorization",
+        ("Bearer ".to_owned() + token.as_str()).parse().unwrap(),
+    );
+
+    request
 }

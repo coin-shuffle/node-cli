@@ -569,7 +569,7 @@ dependencies = [
 [[package]]
 name = "coin-shuffle-contracts-bindings"
 version = "0.1.0"
-source = "git+ssh://git@github.com/coin-shuffle/contracts-bindings.git?branch=develop#f33cbc34d11f2c9549b648d37a783c3e10f178fd"
+source = "git+ssh://git@github.com/coin-shuffle/contracts-bindings.git?branch=develop#ca2d7bda2557438046a2f9be44864f1677c7a69d"
 dependencies = [
  "async-trait",
  "ethers-contract",
@@ -589,7 +589,7 @@ dependencies = [
 [[package]]
 name = "coin-shuffle-core"
 version = "0.1.0"
-source = "git+ssh://git@github.com/coin-shuffle/core.git?branch=develop#279c6e0800d56c309d61039d0e2d469b53e649c0"
+source = "git+ssh://git@github.com/coin-shuffle/core.git?branch=develop#bf300c5472edc7544a87789e3d88cbca3cbc9313"
 dependencies = [
  "async-trait",
  "coin-shuffle-contracts-bindings",
@@ -621,12 +621,13 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
+ "uuid 1.3.0",
 ]
 
 [[package]]
 name = "coin-shuffle-protos"
 version = "0.1.0"
-source = "git+ssh://git@github.com/coin-shuffle/protos.git?branch=develop#d478dd10234bad7675ee59cf70cc866f8854faad"
+source = "git+ssh://git@github.com/coin-shuffle/protos.git?branch=develop#252d3b0a56d47064d69dc9258eaab50133fa5532"
 dependencies = [
  "eyre",
  "prost",
@@ -1109,7 +1110,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -1123,7 +1124,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -1134,7 +1135,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -1152,7 +1153,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -1176,7 +1177,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -1191,7 +1192,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -1224,7 +1225,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "ethers-core",
  "getrandom",
@@ -1240,7 +1241,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -1265,7 +1266,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "async-trait",
  "auto_impl 1.0.1",
@@ -1302,7 +1303,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "async-trait",
  "coins-bip32",
@@ -1319,7 +1320,7 @@ dependencies = [
 [[package]]
 name = "ethers-solc"
 version = "1.0.2"
-source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#7e12f3ba363158a2d0e2598523e92ead7beb9386"
+source = "git+https://github.com/gakonst/ethers-rs.git?branch=master#620300f3571d427f39a767d7c4218f9ef9352fad"
 dependencies = [
  "cfg-if",
  "dunce",
@@ -2597,9 +2598,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3933d3ac2717077b3d5f42b40f59edfb1fb6a8c14e1c7de0f38075c4bac8e314"
+checksum = "e48e50df39172a3e7eb17e14642445da64996989bc212b583015435d39a58537"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -2607,9 +2608,9 @@ dependencies = [
 
 [[package]]
 name = "prost-build"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a24be1d23b4552a012093e1b93697b73d644ae9590e3253d878d0e77d411b614"
+checksum = "2c828f93f5ca4826f97fedcbd3f9a536c16b12cff3dbbb4a007f932bbad95b12"
 dependencies = [
  "bytes",
  "heck",
@@ -2629,9 +2630,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e9935362e8369bc3acd874caeeae814295c504c2bdbcde5c024089cf8b4dc12"
+checksum = "4ea9b0f8cbe5e15a8a042d030bd96668db28ecb567ec37d691971ff5731d2b1b"
 dependencies = [
  "anyhow",
  "itertools",
@@ -2642,9 +2643,9 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7de56acd5cc9642cac2a9518d4c8c53818905398fe42d33235859e0d542a7695"
+checksum = "379119666929a1afd7a043aa6cf96fa67a6dce9af60c88095a4686dbce4c9c88"
 dependencies = [
  "prost",
 ]
@@ -2758,15 +2759,6 @@ name = "regex-syntax"
 version = "0.6.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
-
-[[package]]
-name = "remove_dir_all"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3acd125665422973a33ac9d3dd2df85edad0f4ae9b00dafb1a05e43a9f5ef8e7"
-dependencies = [
- "winapi",
-]
 
 [[package]]
 name = "reqwest"
@@ -3364,16 +3356,15 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.3.0"
+version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cdb1ef4eaeeaddc8fbd371e5017057064af0911902ef36b39801f67cc6d79e4"
+checksum = "af18f7ae1acd354b992402e9ec5864359d693cd8a79dcbef59f76891701c1e95"
 dependencies = [
  "cfg-if",
  "fastrand",
- "libc",
  "redox_syscall",
- "remove_dir_all",
- "winapi",
+ "rustix",
+ "windows-sys 0.42.0",
 ]
 
 [[package]]
@@ -3434,9 +3425,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.19"
+version = "0.3.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53250a3b3fed8ff8fd988587d8925d26a83ac3845d9e03b220b37f34c2b8d6c2"
+checksum = "cd0cbfecb4d19b5ea75bb31ad904eb5b9fa13f21079c3b92017ebdf4999a5890"
 dependencies = [
  "itoa",
  "libc",
@@ -3454,9 +3445,9 @@ checksum = "2e153e1f1acaef8acc537e68b44906d2db6436e2b35ac2c6b42640fff91f00fd"
 
 [[package]]
 name = "time-macros"
-version = "0.2.7"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a460aeb8de6dcb0f381e1ee05f1cd56fcf5a5f6eb8187ff3d8f0b11078d38b7c"
+checksum = "fd80a657e71da814b8e5d60d3374fc6d35045062245d80224748ae522dd76f36"
 dependencies = [
  "time-core",
 ]
