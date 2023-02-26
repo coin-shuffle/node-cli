@@ -1,7 +1,7 @@
 use coin_shuffle_contracts_bindings::utxo::Connector;
 use coin_shuffle_core::node::room::Room;
 use coin_shuffle_core::node::storage::RoomMemoryStorage;
-use coin_shuffle_core::node::Node;
+use coin_shuffle_core::node::Node as Core;
 use coin_shuffle_protos::v1::shuffle_event::Body;
 use coin_shuffle_protos::v1::shuffle_service_client::ShuffleServiceClient;
 use coin_shuffle_protos::v1::{
@@ -24,7 +24,7 @@ use tonic::transport::Channel;
 
 #[derive(Debug, Clone)]
 pub struct Service {
-    node: Node<RoomMemoryStorage, Connector<Provider<Http>>>,
+    inner: Core<RoomMemoryStorage, Connector<Provider<Http>>>,
     grpc_service: ShuffleServiceClient<Channel>,
     room: Option<Room>,
     jwt: String,
@@ -37,7 +37,7 @@ impl Service {
         grpc_service: ShuffleServiceClient<Channel>,
     ) -> Result<Self> {
         Ok(Self {
-            node: Node::new(
+            inner: Core::new(
                 RoomMemoryStorage::new(),
                 Connector::from_raw(rpc_url, utxo_address)
                     .context("failed to init connector from raw")?,
@@ -58,7 +58,7 @@ impl Service {
         log::info!("initializing room...");
 
         self.room = Some(
-            self.node
+            self.inner
                 .init_room(
                     utxo_id,
                     output_address.as_bytes().to_vec(),
@@ -195,7 +195,7 @@ impl Service {
         }
         log::debug!("participants public keys: {:?}", participants_public_keys);
 
-        self.node
+        self.inner
             .update_shuffle_info(
                 participants_public_keys,
                 self.room.clone().context("room is absent")?.utxo.id,
@@ -210,7 +210,7 @@ impl Service {
         log::debug!("received encoded outputs from shuffle-service");
 
         let decoded_outputs = self
-            .node
+            .inner
             .shuffle_round(
                 event_body.outputs,
                 self.room.clone().context("room is absent")?.utxo.id,
@@ -235,7 +235,7 @@ impl Service {
         log::debug!("received transaction signing outputs");
 
         let signature = self
-            .node
+            .inner
             .sign_tx(
                 self.room.clone().context("room is absent")?.utxo.id,
                 event_body.outputs,
