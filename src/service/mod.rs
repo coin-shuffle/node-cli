@@ -57,22 +57,25 @@ impl Service {
     ) -> Result<()> {
         log::info!("initializing room...");
 
+        let rsa_private_key = RsaPrivateKey::from_pkcs8_pem(
+            read_to_string(rsa_priv_path)
+                .context("failed to read rsa priv key from file")?
+                .as_str(),
+        ).context("failed to parse rsa private key")?;
+
+        let ecdsa_private_key = LocalWallet::from_str(
+            read_to_string(ecdsa_priv_path)
+                .context("failed to read ecdsa priv key from file")?
+                .as_str(),
+        ).context("failed to parse ecdsa priv key")?;
+
         self.room = Some(
             self.inner
                 .init_room(
                     utxo_id,
                     output_address.as_bytes().to_vec(),
-                    RsaPrivateKey::from_pkcs8_pem(
-                        read_to_string(rsa_priv_path)
-                            .context("failed to read rsa priv key from file")?
-                            .as_str(),
-                    )?,
-                    LocalWallet::from_str(
-                        read_to_string(ecdsa_priv_path)
-                            .context("failed to read ecdsa priv key from file")?
-                            .as_str(),
-                    )
-                    .context("failed to parse ecdsa priv key")?,
+                    rsa_private_key,
+                    ecdsa_private_key,
                 )
                 .await
                 .context("failed to init room")?,
@@ -90,18 +93,20 @@ impl Service {
             .as_secs()
             .to_string();
 
+        let signature = room
+            .ecdsa_private_key
+            .sign_message(room.utxo.id.to_string() + timestamp.as_str())
+            .await
+            .context("failed to sign with ecdsa priv key")?
+            .to_vec();
+
         let response = self
             .grpc_service
             .join_shuffle_room(with_auth(
                 self.jwt.clone(),
                 JoinShuffleRoomRequest {
                     utxo_id: room.utxo.id.encode(),
-                    signature: room
-                        .ecdsa_private_key
-                        .sign_message(room.utxo.id.to_string() + timestamp.as_str())
-                        .await
-                        .context("failed to sign with ecdsa priv key")?
-                        .to_vec(),
+                    signature,
                     timestamp: timestamp.as_str().parse()?,
                 },
             ))
