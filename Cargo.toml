@@ -50,3 +50,5 @@ async-trait = { version = "0.1.64" }
 
 # uuid
 uuid = { version = "1.3.0" }
+
+open-fastrlp      = { version = "0.1.4" }

@@ -616,6 +616,7 @@ dependencies = [
  "ethers",
  "eyre",
  "log",
+ "open-fastrlp",
  "rsa",
  "simplelog",
  "thiserror",

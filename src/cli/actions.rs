@@ -13,7 +13,7 @@ pub async fn shuffle(args: arguments::Shuffle) -> Result<()> {
 
     service
         .init_shuffle_room(
-            U256::from(args.utxo_id.as_bytes()),
+            U256::from_dec_str(args.utxo_id.as_str()).unwrap(),
             args.output_address,
             args.rsa_priv_path,
             args.ecdsa_priv_path,
