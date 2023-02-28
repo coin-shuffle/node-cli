@@ -10,9 +10,10 @@ use coin_shuffle_protos::v1::{
     ShuffleRoundRequest, ShuffleTxHash, SignShuffleTxRequest, TxSigningOutputs,
 };
 
+use ethers::abi::AbiEncode;
 use ethers::providers::{Http, Provider};
 use ethers::signers::{LocalWallet, Signer};
-use ethers::types::U256;
+use ethers::types::{Address, U256};
 use eyre::{Context, ContextCompat, Result};
 use open_fastrlp::Encodable;
 use rsa::pkcs1::DecodeRsaPrivateKey;
@@ -56,7 +57,7 @@ impl Service {
     pub async fn init_shuffle_room(
         &mut self,
         utxo_id: U256,
-        output_address: String,
+        output_address_raw: String,
         rsa_priv_path: String,
         ecdsa_priv_path: String,
     ) -> Result<()> {
@@ -69,13 +70,16 @@ impl Service {
         )
         .context("failed to parse rsa private key")?;
 
-        let key = "945720922694766abcce1f41f364fc6314f26f0c4f859649e1d77173d9c9c12d";
-        // read_to_string(ecdsa_priv_path).context("failed to read ecdsa priv key from file")?;
+        let ecdsa_private_key = LocalWallet::from_str(
+            read_to_string(ecdsa_priv_path)
+                .context("failed to read ecdsa priv key from file")?
+                .as_str()
+                .trim(),
+        )
+        .context("failed to parse ecdsa priv key")?;
 
-        log::info!("{}", key);
-
-        let ecdsa_private_key =
-            LocalWallet::from_str(key).context("failed to parse ecdsa priv key")?;
+        let output_address = Address::from_str(output_address_raw.as_str())
+            .context("failed to parse output address")?;
 
         self.room = Some(
             self.inner
@@ -207,6 +211,8 @@ impl Service {
 
     async fn event_shuffle_info(&mut self, event_body: ShuffleInfo) -> Result<()> {
         log::debug!("received shuffle info from shuffle-service");
+
+        self.jwt = event_body.shuffle_access_token;
 
         let mut participants_public_keys = Vec::<RsaPublicKey>::new();
         for public_key_raw in event_body.public_keys_list {
