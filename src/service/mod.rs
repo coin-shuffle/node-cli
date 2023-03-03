@@ -9,12 +9,14 @@ use coin_shuffle_protos::v1::{
     RsaPublicKey as ProtoRSAPublicKey, ShuffleError, ShuffleEvent, ShuffleInfo,
     ShuffleRoundRequest, ShuffleTxHash, SignShuffleTxRequest, TxSigningOutputs,
 };
+
 use ethers::abi::AbiEncode;
 use ethers::providers::{Http, Provider};
 use ethers::signers::{LocalWallet, Signer};
-use ethers::types::U256;
+use ethers::types::{Address, U256};
 use eyre::{Context, ContextCompat, Result};
-use rsa::pkcs8::DecodePrivateKey;
+use open_fastrlp::Encodable;
+use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::{BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
 use std::fs::read_to_string;
 use std::str::FromStr;
@@ -29,6 +31,10 @@ pub struct Service {
     room: Option<Room>,
     jwt: String,
 }
+
+const U256_BYTES: usize = 32;
+const TIMESTAMP_BYTES: usize = 8;
+const MESSAGE_LEN: usize = U256_BYTES + TIMESTAMP_BYTES;
 
 impl Service {
     pub fn new(
@@ -51,23 +57,29 @@ impl Service {
     pub async fn init_shuffle_room(
         &mut self,
         utxo_id: U256,
-        output_address: String,
+        output_address_raw: String,
         rsa_priv_path: String,
         ecdsa_priv_path: String,
     ) -> Result<()> {
         log::info!("initializing room...");
 
-        let rsa_private_key = RsaPrivateKey::from_pkcs8_pem(
+        let rsa_private_key = RsaPrivateKey::from_pkcs1_pem(
             read_to_string(rsa_priv_path)
                 .context("failed to read rsa priv key from file")?
                 .as_str(),
-        ).context("failed to parse rsa private key")?;
+        )
+        .context("failed to parse rsa private key")?;
 
         let ecdsa_private_key = LocalWallet::from_str(
             read_to_string(ecdsa_priv_path)
                 .context("failed to read ecdsa priv key from file")?
-                .as_str(),
-        ).context("failed to parse ecdsa priv key")?;
+                .as_str()
+                .trim(),
+        )
+        .context("failed to parse ecdsa priv key")?;
+
+        let output_address = Address::from_str(output_address_raw.as_str())
+            .context("failed to parse output address")?;
 
         self.room = Some(
             self.inner
@@ -90,24 +102,32 @@ impl Service {
         let room = self.room.as_ref().context("room is missing")?;
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
-            .as_secs()
-            .to_string();
+            .as_secs();
 
-        let signature = room
-            .ecdsa_private_key
-            .sign_message(room.utxo.id.to_string() + timestamp.as_str())
+        let mut message = vec![0u8; MESSAGE_LEN];
+
+        room.utxo.id.to_big_endian(&mut message[0..U256_BYTES]);
+        message[U256_BYTES..MESSAGE_LEN].copy_from_slice(&timestamp.to_be_bytes());
+
+        let mut signature = Vec::new();
+        room.ecdsa_private_key
+            .sign_message(message)
             .await
             .context("failed to sign with ecdsa priv key")?
-            .to_vec();
+            .encode(&mut signature);
+
+        let mut utxo_id = vec![0u8; U256_BYTES];
+
+        room.utxo.id.to_big_endian(&mut utxo_id);
 
         let response = self
             .grpc_service
             .join_shuffle_room(with_auth(
                 self.jwt.clone(),
                 JoinShuffleRoomRequest {
-                    utxo_id: room.utxo.id.encode(),
+                    utxo_id,
+                    timestamp,
                     signature,
-                    timestamp: timestamp.as_str().parse()?,
                 },
             ))
             .await
@@ -168,6 +188,7 @@ impl Service {
         mut stream: Streaming<ShuffleEvent>,
     ) -> Result<String> {
         while let Ok(Some(event)) = stream.message().await {
+            log::info!("got event: {:?}", event);
             let Some(data) = event.body else {
                 continue;
             };
@@ -188,6 +209,8 @@ impl Service {
 
     async fn event_shuffle_info(&mut self, event_body: ShuffleInfo) -> Result<()> {
         log::debug!("received shuffle info from shuffle-service");
+
+        self.jwt = event_body.shuffle_access_token;
 
         let mut participants_public_keys = Vec::<RsaPublicKey>::new();
         for public_key_raw in event_body.public_keys_list {
