@@ -120,8 +120,6 @@ impl Service {
 
         room.utxo.id.to_big_endian(&mut utxo_id);
 
-        dbg!(&signature);
-
         let response = self
             .grpc_service
             .join_shuffle_room(with_auth(
