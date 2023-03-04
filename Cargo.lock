@@ -577,7 +577,7 @@ dependencies = [
 [[package]]
 name = "coin-shuffle-core"
 version = "0.1.0"
-source = "git+ssh://git@github.com/coin-shuffle/core.git?branch=develop#798d2cd6768c6ec34e9b08e48d6ee4146840af44"
+source = "git+ssh://git@github.com/coin-shuffle/core.git?branch=refactoring#57c4a51a214d741d375e5b14ebae83655fed1540"
 dependencies = [
  "async-trait",
  "coin-shuffle-contracts-bindings",

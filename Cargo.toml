@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies.coin-shuffle-core]
 git      = "ssh://git@github.com/coin-shuffle/core.git"
-branch   = "develop"
+branch   = "refactoring"
 features = ["serde"]
 
 [dependencies.coin-shuffle-protos]

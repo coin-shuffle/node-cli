@@ -1,5 +1,6 @@
 use coin_shuffle_contracts_bindings::utxo::Connector;
 use coin_shuffle_core::node::room::Room;
+use coin_shuffle_core::node::signer::Signer;
 use coin_shuffle_core::node::storage::RoomMemoryStorage;
 use coin_shuffle_core::node::Node as Core;
 use coin_shuffle_protos::v1::shuffle_event::Body;
@@ -9,33 +10,35 @@ use coin_shuffle_protos::v1::{
     RsaPublicKey as ProtoRSAPublicKey, ShuffleError, ShuffleEvent, ShuffleInfo,
     ShuffleRoundRequest, ShuffleTxHash, SignShuffleTxRequest, TxSigningOutputs,
 };
-
 use ethers::providers::{Http, Provider};
-use ethers::signers::{LocalWallet, Signer};
+use ethers::signers::LocalWallet;
 use ethers::types::{Address, U256};
 use eyre::{Context, ContextCompat, Result};
 use open_fastrlp::Encodable;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::{BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
+use signer::DirectSigner;
 use std::fs::read_to_string;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
 use tonic::codec::Streaming;
 use tonic::transport::Channel;
 
-#[derive(Debug, Clone)]
-pub struct Service {
-    inner: Core<RoomMemoryStorage, Connector<Provider<Http>>>,
-    grpc_service: ShuffleServiceClient<Channel>,
-    room: Option<Room>,
-    jwt: String,
-}
+mod signer;
 
 const U256_BYTES: usize = 32;
 const TIMESTAMP_BYTES: usize = 8;
 const MESSAGE_LEN: usize = U256_BYTES + TIMESTAMP_BYTES;
 
-impl Service {
+#[derive(Debug, Clone)]
+pub struct Node {
+    inner: Core<DirectSigner, RoomMemoryStorage<DirectSigner>, Connector<Provider<Http>>>,
+    grpc_service: ShuffleServiceClient<Channel>,
+    room: Option<Room<DirectSigner>>,
+    jwt: String,
+}
+
+impl Node {
     pub fn new(
         rpc_url: String,
         utxo_address: String,
@@ -86,7 +89,7 @@ impl Service {
                     utxo_id,
                     output_address.as_bytes().to_vec(),
                     rsa_private_key,
-                    ecdsa_private_key,
+                    DirectSigner::new(ecdsa_private_key),
                 )
                 .await
                 .context("failed to init room")?,
@@ -109,7 +112,7 @@ impl Service {
         message[U256_BYTES..MESSAGE_LEN].copy_from_slice(&timestamp.to_be_bytes());
 
         let mut signature = Vec::new();
-        room.ecdsa_private_key
+        room.signer
             .sign_message(message)
             .await
             .context("failed to sign with ecdsa priv key")?
