@@ -1,28 +1,31 @@
 use coin_shuffle_contracts_bindings::utxo::Connector;
-use coin_shuffle_core::node::room::Room;
-use coin_shuffle_core::node::signer::Signer;
-use coin_shuffle_core::node::storage::RoomMemoryStorage;
-use coin_shuffle_core::node::Node as Core;
-use coin_shuffle_protos::v1::shuffle_event::Body;
-use coin_shuffle_protos::v1::shuffle_service_client::ShuffleServiceClient;
+use coin_shuffle_core::node::{
+    room::Room, signer::Signer, storage::RoomMemoryStorage, Node as Core,
+};
 use coin_shuffle_protos::v1::{
-    ConnectShuffleRoomRequest, EncodedOutputs, IsReadyForShuffleRequest, JoinShuffleRoomRequest,
+    shuffle_event::Body, shuffle_service_client::ShuffleServiceClient, ConnectShuffleRoomRequest,
+    EncodedOutputs, IsReadyForShuffleRequest, JoinShuffleRoomRequest,
     RsaPublicKey as ProtoRSAPublicKey, ShuffleError, ShuffleEvent, ShuffleInfo,
     ShuffleRoundRequest, ShuffleTxHash, SignShuffleTxRequest, TxSigningOutputs,
 };
-use ethers::providers::{Http, Provider};
-use ethers::signers::LocalWallet;
-use ethers::types::{Address, U256};
+use ethers::{
+    providers::{Http, Provider},
+    signers::LocalWallet,
+    types::{Address, U256},
+};
 use eyre::{Context, ContextCompat, Result};
 use open_fastrlp::Encodable;
-use rsa::pkcs1::DecodeRsaPrivateKey;
-use rsa::{BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
+use rsa::{
+    pkcs1::DecodeRsaPrivateKey,
+    {BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey},
+};
 use signer::DirectSigner;
-use std::fs::read_to_string;
-use std::str::FromStr;
-use std::time::{Duration, SystemTime};
-use tonic::codec::Streaming;
-use tonic::transport::Channel;
+use std::{
+    fs::read_to_string,
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
+use tonic::{codec::Streaming, transport::Channel};
 
 mod signer;
 
