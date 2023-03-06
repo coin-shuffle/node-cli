@@ -235,7 +235,7 @@ impl Node {
                 BigUint::from_bytes_be(public_key_raw.exponent.as_slice()),
             )
             .context("failed to parse rsa public key")?;
-            participants_public_keys.insert(0, public_key);
+            participants_public_keys.push(public_key);
         }
 
         self.inner
