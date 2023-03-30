@@ -1,11 +1,11 @@
 use crate::cli::arguments;
-use crate::service::Service;
+use crate::service::Node;
 use coin_shuffle_protos::v1::shuffle_service_client::ShuffleServiceClient;
 use ethers::types::U256;
 use eyre::Result;
 
 pub async fn shuffle(args: arguments::Shuffle) -> Result<()> {
-    let mut service = Service::new(
+    let mut service = Node::new(
         args.rpc_url,
         args.utxo_address,
         ShuffleServiceClient::connect(args.service_url).await?,

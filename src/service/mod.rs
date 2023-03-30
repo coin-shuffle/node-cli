@@ -1,42 +1,47 @@
 use coin_shuffle_contracts_bindings::utxo::Connector;
-use coin_shuffle_core::node::room::Room;
-use coin_shuffle_core::node::storage::RoomMemoryStorage;
-use coin_shuffle_core::node::Node as Core;
-use coin_shuffle_protos::v1::shuffle_event::Body;
-use coin_shuffle_protos::v1::shuffle_service_client::ShuffleServiceClient;
+use coin_shuffle_core::node::{
+    room::Room, signer::Signer, storage::RoomMemoryStorage, Node as Core,
+};
 use coin_shuffle_protos::v1::{
-    ConnectShuffleRoomRequest, EncodedOutputs, IsReadyForShuffleRequest, JoinShuffleRoomRequest,
+    shuffle_event::Body, shuffle_service_client::ShuffleServiceClient, ConnectShuffleRoomRequest,
+    EncodedOutputs, IsReadyForShuffleRequest, JoinShuffleRoomRequest,
     RsaPublicKey as ProtoRSAPublicKey, ShuffleError, ShuffleEvent, ShuffleInfo,
     ShuffleRoundRequest, ShuffleTxHash, SignShuffleTxRequest, TxSigningOutputs,
 };
-
-use ethers::abi::AbiEncode;
-use ethers::providers::{Http, Provider};
-use ethers::signers::{LocalWallet, Signer};
-use ethers::types::{Address, U256};
+use ethers::{
+    providers::{Http, Provider},
+    signers::LocalWallet,
+    types::{Address, U256},
+};
 use eyre::{Context, ContextCompat, Result};
 use open_fastrlp::Encodable;
-use rsa::pkcs1::DecodeRsaPrivateKey;
-use rsa::{BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey};
-use std::fs::read_to_string;
-use std::str::FromStr;
-use std::time::{Duration, SystemTime};
-use tonic::codec::Streaming;
-use tonic::transport::Channel;
+use rsa::{
+    pkcs1::DecodeRsaPrivateKey,
+    {BigUint, PublicKeyParts, RsaPrivateKey, RsaPublicKey},
+};
+use signer::DirectSigner;
+use std::{
+    fs::read_to_string,
+    str::FromStr,
+    time::{Duration, SystemTime},
+};
+use tonic::{codec::Streaming, transport::Channel};
 
-#[derive(Debug, Clone)]
-pub struct Service {
-    inner: Core<RoomMemoryStorage, Connector<Provider<Http>>>,
-    grpc_service: ShuffleServiceClient<Channel>,
-    room: Option<Room>,
-    jwt: String,
-}
+mod signer;
 
 const U256_BYTES: usize = 32;
 const TIMESTAMP_BYTES: usize = 8;
 const MESSAGE_LEN: usize = U256_BYTES + TIMESTAMP_BYTES;
 
-impl Service {
+#[derive(Debug, Clone)]
+pub struct Node {
+    inner: Core<DirectSigner, RoomMemoryStorage<DirectSigner>, Connector<Provider<Http>>>,
+    grpc_service: ShuffleServiceClient<Channel>,
+    room: Option<Room<DirectSigner>>,
+    jwt: String,
+}
+
+impl Node {
     pub fn new(
         rpc_url: String,
         utxo_address: String,
@@ -61,7 +66,7 @@ impl Service {
         rsa_priv_path: String,
         ecdsa_priv_path: String,
     ) -> Result<()> {
-        log::info!("initializing room...");
+        log::info!("[NODE] initializing room...");
 
         let rsa_private_key = RsaPrivateKey::from_pkcs1_pem(
             read_to_string(rsa_priv_path)
@@ -87,7 +92,7 @@ impl Service {
                     utxo_id,
                     output_address.as_bytes().to_vec(),
                     rsa_private_key,
-                    ecdsa_private_key,
+                    DirectSigner::new(ecdsa_private_key),
                 )
                 .await
                 .context("failed to init room")?,
@@ -97,7 +102,7 @@ impl Service {
     }
 
     pub async fn join_shuffle_room(&mut self) -> Result<()> {
-        log::info!("connecting to room...");
+        log::info!("[NODE] connecting to room...");
 
         let room = self.room.as_ref().context("room is missing")?;
         let timestamp = SystemTime::now()
@@ -109,12 +114,12 @@ impl Service {
         room.utxo.id.to_big_endian(&mut message[0..U256_BYTES]);
         message[U256_BYTES..MESSAGE_LEN].copy_from_slice(&timestamp.to_be_bytes());
 
-        let mut signature = Vec::new();
-        room.ecdsa_private_key
+        let mut signature_buf = Vec::new();
+        room.signer
             .sign_message(message)
             .await
             .context("failed to sign with ecdsa priv key")?
-            .encode(&mut signature);
+            .encode(&mut signature_buf);
 
         let mut utxo_id = vec![0u8; U256_BYTES];
 
@@ -127,7 +132,7 @@ impl Service {
                 JoinShuffleRoomRequest {
                     utxo_id,
                     timestamp,
-                    signature,
+                    signature: signature_buf,
                 },
             ))
             .await
@@ -139,11 +144,12 @@ impl Service {
     }
 
     pub async fn wait_shuffle(&mut self) -> Result<()> {
-        log::info!("waiting shuffle start...");
+        log::info!("[NODE] waiting shuffle start...");
 
         let mut is_ready = false;
 
         while !is_ready {
+            log::info!("[NODE] waiting for room to be ready...");
             tokio::time::sleep(Duration::from_secs(30)).await;
             let response = self
                 .grpc_service
@@ -158,7 +164,7 @@ impl Service {
     }
 
     pub async fn connect_room(&mut self) -> Result<Streaming<ShuffleEvent>> {
-        log::info!("room is ready, start shuffling...");
+        log::info!("[NODE] room is found, start shuffling...");
 
         let rsa_public_key = self
             .room
@@ -188,19 +194,32 @@ impl Service {
         mut stream: Streaming<ShuffleEvent>,
     ) -> Result<String> {
         while let Ok(Some(event)) = stream.message().await {
-            log::info!("got event: {:?}", event);
+            log::debug!("[NODE] got event: {:?}", event);
             let Some(data) = event.body else {
                 continue;
             };
 
             match data {
-                Body::ShuffleInfo(event_body) => self.event_shuffle_info(event_body).await?,
-                Body::EncodedOutputs(event_body) => self.event_encoded_outputs(event_body).await?,
+                Body::ShuffleInfo(event_body) => {
+                    log::info!("[NODE] shuffle room found...");
+                    self.event_shuffle_info(event_body).await?
+                }
+                Body::EncodedOutputs(event_body) => {
+                    log::debug!("[NODE] received encoded outputs");
+                    self.event_encoded_outputs(event_body).await?
+                }
                 Body::TxSigningOutputs(event_body) => {
+                    log::debug!("[NODE] received transaction signing outputs");
                     self.event_signing_outputs(event_body).await?
                 }
-                Body::ShuffleTxHash(event_body) => self.event_tx_hash(event_body).await?,
-                Body::Error(event_body) => self.event_error(event_body).await?,
+                Body::ShuffleTxHash(event_body) => {
+                    log::debug!("[NODE] received transaction hash");
+                    self.event_tx_hash(event_body).await?
+                }
+                Body::Error(event_body) => {
+                    log::debug!("[NODE] received error from shuffle-service");
+                    self.event_error(event_body).await?
+                }
             }
         }
 
@@ -208,8 +227,6 @@ impl Service {
     }
 
     async fn event_shuffle_info(&mut self, event_body: ShuffleInfo) -> Result<()> {
-        log::debug!("received shuffle info from shuffle-service");
-
         self.jwt = event_body.shuffle_access_token;
 
         let mut participants_public_keys = Vec::<RsaPublicKey>::new();
@@ -221,7 +238,6 @@ impl Service {
             .context("failed to parse rsa public key")?;
             participants_public_keys.push(public_key);
         }
-        log::debug!("participants public keys: {:?}", participants_public_keys);
 
         self.inner
             .update_shuffle_info(
@@ -235,8 +251,6 @@ impl Service {
     }
 
     async fn event_encoded_outputs(&mut self, event_body: EncodedOutputs) -> Result<()> {
-        log::debug!("received encoded outputs from shuffle-service");
-
         let decoded_outputs = self
             .inner
             .shuffle_round(
@@ -260,8 +274,6 @@ impl Service {
     }
 
     async fn event_signing_outputs(&mut self, event_body: TxSigningOutputs) -> Result<()> {
-        log::debug!("received transaction signing outputs");
-
         let signature = self
             .inner
             .sign_tx(
@@ -284,7 +296,7 @@ impl Service {
 
     async fn event_tx_hash(&mut self, event_body: ShuffleTxHash) -> Result<()> {
         log::info!(
-            "utxo successfully shuffled, tx hash: {0}",
+            "[NODE] utxo successfully shuffled, tx hash: {0}",
             ethers::types::H160::from_slice(event_body.tx_hash.as_slice()).to_string()
         );
 
@@ -292,7 +304,11 @@ impl Service {
     }
 
     async fn event_error(&self, event_body: ShuffleError) -> Result<()> {
-        log::info!("failed to shuffle, got error: {0}", event_body.error);
+        // TODO: Add error handling
+        log::info!(
+            "[NODE] failed to shuffle, got error from shuffle error: {0}",
+            event_body.error
+        );
 
         Ok(())
     }
