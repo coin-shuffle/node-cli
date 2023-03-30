@@ -114,12 +114,12 @@ impl Node {
         room.utxo.id.to_big_endian(&mut message[0..U256_BYTES]);
         message[U256_BYTES..MESSAGE_LEN].copy_from_slice(&timestamp.to_be_bytes());
 
-        let mut signature = Vec::new();
+        let mut signature_buf = Vec::new();
         room.signer
             .sign_message(message)
             .await
             .context("failed to sign with ecdsa priv key")?
-            .encode(&mut signature);
+            .encode(&mut signature_buf);
 
         let mut utxo_id = vec![0u8; U256_BYTES];
 
@@ -132,7 +132,7 @@ impl Node {
                 JoinShuffleRoomRequest {
                     utxo_id,
                     timestamp,
-                    signature,
+                    signature: signature_buf,
                 },
             ))
             .await
@@ -149,6 +149,7 @@ impl Node {
         let mut is_ready = false;
 
         while !is_ready {
+            log::info!("[NODE] waiting for room to be ready...");
             tokio::time::sleep(Duration::from_secs(30)).await;
             let response = self
                 .grpc_service

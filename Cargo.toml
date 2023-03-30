@@ -18,10 +18,6 @@ branch   = "develop"
 git      = "ssh://git@github.com/coin-shuffle/contracts-bindings.git"
 branch   = "develop"
 
-[dependencies.ethers]
-git = "https://github.com/gakonst/ethers-rs.git"
-branch = "master"
-
 [dependencies]
 # easy cli parsing
 clap        = { version = "4.1.6", features = ["derive", "cargo"] }
@@ -29,6 +25,7 @@ clap        = { version = "4.1.6", features = ["derive", "cargo"] }
 ## ethereum lib
 #ethers-core      = { version = "1.0.2" }
 #ethers-providers = { version = "1.0.2" }
+ethers = "2"
 
 # convinient error handling
 thiserror = { version = "1.0.38" }

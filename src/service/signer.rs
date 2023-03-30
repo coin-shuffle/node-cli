@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use coin_shuffle_core::node::signer;
-use ethers::signers::{LocalWallet, Signer as EthersSigner, WalletError};
+use ethers::{
+    signers::{LocalWallet, Signer as EthersSigner, WalletError},
+    types::Signature,
+};
 
 #[derive(Debug, Clone)]
 pub struct DirectSigner {
@@ -21,7 +24,7 @@ impl signer::Signer for DirectSigner {
     async fn sign_message<S: Send + Sync + AsRef<[u8]>>(
         &self,
         message: S,
-    ) -> Result<Vec<u8>, Self::Error> {
-        Ok(self.wallet.sign_message(message).await?.to_vec())
+    ) -> Result<Signature, Self::Error> {
+        Ok(self.wallet.sign_message(message).await?)
     }
 }
