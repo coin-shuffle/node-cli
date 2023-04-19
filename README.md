@@ -1,6 +1,6 @@
 # node
 
-Implementation of partipant in coin shuffle process
+Implementation of CLI partipant in coin shuffle process
 
 ## Running
 
